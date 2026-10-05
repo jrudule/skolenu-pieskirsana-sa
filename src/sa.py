@@ -61,3 +61,32 @@ def evaluate(dist, cap, assign):
     if err is not None:
         raise ValueError(f"nederīgs risinājums: {err}")
     return total_cost(dist, assign)
+
+
+# ---------------------------------------------------------------------------
+# Sākuma risinājums
+# ---------------------------------------------------------------------------
+
+def greedy_initial(dist, cap, order=None):
+    """Alkatīgs sākuma risinājums: katram skolēnam tuvākā skola ar brīvu vietu.
+
+    Skolēni tiek apstrādāti secībā `order` (pēc noklusējuma 0, 1, ..., m-1).
+    Tā kā kopējā ietilpība >= m, brīva vieta vienmēr atradīsies.
+    """
+    dist = np.asarray(dist)
+    cap = np.asarray(cap)
+    m, n = dist.shape
+    if cap.sum() < m:
+        raise ValueError("kopējā skolu ietilpība ir mazāka par skolēnu skaitu")
+    if order is None:
+        order = range(m)
+    by_distance = np.argsort(dist, axis=1, kind="stable")
+    free = cap.astype(np.int64).copy()
+    assign = np.full(m, -1, dtype=np.int64)
+    for k in order:
+        for j in by_distance[k]:
+            if free[j] > 0:
+                assign[k] = j
+                free[j] -= 1
+                break
+    return assign
