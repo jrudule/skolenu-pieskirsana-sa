@@ -236,13 +236,17 @@ def estimate_t0(st, near, rng, accept_prob=0.3, samples=500, p_swap=0.5):
     return -float(np.mean(worse)) / np.log(accept_prob)
 
 
-def simulated_annealing(dist, cap, seed=0, alpha=0.95, t0=None, t_end=0.05,
-                        iters_per_temp=None, p_swap=0.5, n_near=10, init=None):
+def simulated_annealing(dist, cap, seed=0, alpha=0.98, t0=None, t_end=0.2,
+                        iters_per_temp=None, p_swap=0.7, n_near=5, init=None):
     """Simulētā rūdīšana skolēnu piekārtošanai.
 
     Dzesēšana: T <- alpha*T pēc katriem `iters_per_temp` gājieniem, līdz T < t_end.
     Pasliktinošs gājiens (Δ > 0) tiek pieņemts ar varbūtību exp(-Δ/T).
     Visi apskatītie risinājumi ir derīgi (pārpildīšana netiek pieļauta).
+
+    Noklusējuma parametri izvēlēti ar nelielu pārlasi (sk. README): apmaiņas
+    gājieni (p_swap=0.7) un šaurs kandidātu saraksts (n_near=5) deva mazāku
+    novirzi no optimuma nekā p_swap=0.5, n_near=10 pie līdzīga laika.
     """
     rng = np.random.default_rng(seed)
     dist = np.asarray(dist)
