@@ -183,3 +183,112 @@ class State:
 
     def assignment(self):
         return np.array(self.assign, dtype=np.int64)
+
+
+# ---------------------------------------------------------------------------
+# Simulētā rūdīšana
+# ---------------------------------------------------------------------------
+
+class SAResult:
+    """Rūdīšanas rezultāts."""
+
+    def __init__(self, assign, cost, initial_cost, iterations, accepted, history, t0):
+        self.assign = assign              # labākais atrastais piešķīrums
+        self.cost = cost                  # tā izmaksas
+        self.initial_cost = initial_cost  # sākuma (alkatīgā) risinājuma izmaksas
+        self.iterations = iterations      # izmēģināto gājienu skaits
+        self.accepted = accepted          # pieņemto gājienu skaits
+        self.history = history            # (iterācija, T, pašreizējās, labākās) katrā T līmenī
+        self.t0 = t0
+
+
+def _propose(st, near, rk, rn, rm, is_swap):
+    """Ģenerē gājienu. Atgriež (k, cits, Δ, vai_apmaiņa) vai None.
+
+    Mērķa skolu izvēlas starp skolēnam k tuvākajām skolām `near[k]` (kandidātu
+    saraksts), jo gājieni uz tālām skolām gandrīz nekad netiek pieņemti.
+    """
+    j = near[rk][rn]
+    if j == st.assign[rk]:
+        return None
+    if is_swap:
+        lst = st.members[j]
+        if not lst:
+            return None
+        k2 = lst[int(rm * len(lst))]
+        return rk, k2, st.delta_swap(rk, k2), True
+    if st.load[j] >= st.cap[j]:
+        return None
+    return rk, j, st.delta_relocate(rk, j), False
+
+
+def estimate_t0(st, near, rng, accept_prob=0.3, samples=500, p_swap=0.5):
+    """Sākuma temperatūra: vidējais pasliktinājums Δ+ tiek pieņemts ar `accept_prob`."""
+    m, L = len(near), len(near[0])
+    worse = []
+    for _ in range(samples):
+        mv = _propose(st, near, int(rng.integers(m)), int(rng.integers(L)),
+                      rng.random(), rng.random() < p_swap)
+        if mv is not None and mv[2] > 0:
+            worse.append(mv[2])
+    if not worse:
+        return 1.0
+    return -float(np.mean(worse)) / np.log(accept_prob)
+
+
+def simulated_annealing(dist, cap, seed=0, alpha=0.95, t0=None, t_end=0.05,
+                        iters_per_temp=None, p_swap=0.5, n_near=10, init=None):
+    """Simulētā rūdīšana skolēnu piekārtošanai.
+
+    Dzesēšana: T <- alpha*T pēc katriem `iters_per_temp` gājieniem, līdz T < t_end.
+    Pasliktinošs gājiens (Δ > 0) tiek pieņemts ar varbūtību exp(-Δ/T).
+    Visi apskatītie risinājumi ir derīgi (pārpildīšana netiek pieļauta).
+    """
+    rng = np.random.default_rng(seed)
+    dist = np.asarray(dist)
+    m, n = dist.shape
+    if init is None:
+        init = greedy_initial(dist, cap)
+    st = State(dist, cap, init)
+    L = min(n_near, n)
+    near = np.argsort(dist, axis=1, kind="stable")[:, :L].tolist()
+    if t0 is None:
+        t0 = estimate_t0(st, near, rng, p_swap=p_swap)
+    if iters_per_temp is None:
+        iters_per_temp = 2 * m
+
+    initial_cost = st.cost
+    best_cost = st.cost
+    best_assign = list(st.assign)
+    history = [(0, t0, st.cost, best_cost)]
+    T = t0
+    it = accepted = 0
+    exp = np.exp
+    while T > t_end:
+        # Nejaušos skaitļus ģenerē paketē visam temperatūras līmenim (ātrāk).
+        RK = rng.integers(m, size=iters_per_temp).tolist()
+        RN = rng.integers(L, size=iters_per_temp).tolist()
+        RM = rng.random(iters_per_temp).tolist()
+        RS = (rng.random(iters_per_temp) < p_swap).tolist()
+        RA = rng.random(iters_per_temp).tolist()
+        for i in range(iters_per_temp):
+            mv = _propose(st, near, RK[i], RN[i], RM[i], RS[i])
+            if mv is None:
+                continue
+            k, other, d, is_swap = mv
+            if d <= 0 or RA[i] < exp(-d / T):
+                if is_swap:
+                    st.swap(k, other, d)
+                else:
+                    st.relocate(k, other, d)
+                accepted += 1
+                if st.cost < best_cost:
+                    best_cost = st.cost
+                    best_assign = list(st.assign)
+        it += iters_per_temp
+        T *= alpha
+        history.append((it, T, st.cost, best_cost))
+
+    best = np.array(best_assign, dtype=np.int64)
+    assert total_cost(dist, best) == best_cost
+    return SAResult(best, best_cost, initial_cost, it, accepted, history, t0)
