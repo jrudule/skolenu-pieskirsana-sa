@@ -90,3 +90,96 @@ def greedy_initial(dist, cap, order=None):
                 free[j] -= 1
                 break
     return assign
+
+
+# ---------------------------------------------------------------------------
+# Stāvoklis un gājieni
+# ---------------------------------------------------------------------------
+
+class State:
+    """Pašreizējais risinājums ar inkrementāli uzturamiem lielumiem.
+
+    assign[k]  -- skolēna k skola;
+    load[j]    -- skolas j aizpildījuma skaitītājs;
+    members[j] -- skolas j skolēnu saraksts, pos[k] -- k indekss tajā
+                  (vajadzīgs, lai O(1) laikā izvēlētos nejaušu skolas skolēnu);
+    cost       -- mērķa funkcijas vērtība.
+
+    Iekšējā ciklā izmanto Python sarakstus, jo atsevišķu elementu piekļuve
+    tiem ir ievērojami ātrāka nekā numpy masīviem.
+    """
+
+    def __init__(self, dist, cap, assign):
+        err = validate(dist, cap, assign)
+        if err is not None:
+            raise ValueError(f"nederīgs sākuma risinājums: {err}")
+        self.m, self.n = np.shape(dist)
+        self.dist = np.asarray(dist).tolist()
+        self.cap = np.asarray(cap).tolist()
+        self.assign = np.asarray(assign).tolist()
+        self.load = [0] * self.n
+        self.members = [[] for _ in range(self.n)]
+        self.pos = [0] * self.m
+        for k, j in enumerate(self.assign):
+            self.load[j] += 1
+            self.pos[k] = len(self.members[j])
+            self.members[j].append(k)
+        self.cost = total_cost(dist, assign)
+
+    # -- skolēna pārcelšana uz skolu ar brīvu vietu --------------------------
+
+    def can_relocate(self, k, j):
+        return j != self.assign[k] and self.load[j] < self.cap[j]
+
+    def delta_relocate(self, k, j):
+        """Δ, pārceļot skolēnu k uz skolu j: O(1)."""
+        row = self.dist[k]
+        return row[j] - row[self.assign[k]]
+
+    def relocate(self, k, j, delta=None):
+        if delta is None:
+            delta = self.delta_relocate(k, j)
+        s = self.assign[k]
+        self._remove(k, s)
+        self._add(k, j)
+        self.assign[k] = j
+        self.load[s] -= 1
+        self.load[j] += 1
+        self.cost += delta
+
+    # -- divu skolēnu apmaiņa (aizpildījums nemainās) ------------------------
+
+    def delta_swap(self, k1, k2):
+        """Δ, apmainot skolēnu k1 un k2 skolas: O(1)."""
+        s1, s2 = self.assign[k1], self.assign[k2]
+        r1, r2 = self.dist[k1], self.dist[k2]
+        return r1[s2] + r2[s1] - r1[s1] - r2[s2]
+
+    def swap(self, k1, k2, delta=None):
+        if delta is None:
+            delta = self.delta_swap(k1, k2)
+        s1, s2 = self.assign[k1], self.assign[k2]
+        # Saraksta vietas apmainās tieši tāpat kā skolas.
+        p1, p2 = self.pos[k1], self.pos[k2]
+        self.members[s1][p1] = k2
+        self.members[s2][p2] = k1
+        self.pos[k1], self.pos[k2] = p2, p1
+        self.assign[k1], self.assign[k2] = s2, s1
+        self.cost += delta
+
+    # -- palīgfunkcijas -----------------------------------------------------
+
+    def _remove(self, k, j):
+        lst = self.members[j]
+        last = lst.pop()
+        if last != k:
+            p = self.pos[k]
+            lst[p] = last
+            self.pos[last] = p
+
+    def _add(self, k, j):
+        self.pos[k] = len(self.members[j])
+        self.members[j].append(k)
+
+    def assignment(self):
+        return np.array(self.assign, dtype=np.int64)
