@@ -1,8 +1,8 @@
 # Skolēnu piekārtošana skolām ar simulēto rūdīšanu
 
 Kursa darbs: optimizācijas algoritma implementācija Python valodā.
-Simulētā rūdīšana ir realizēta pašu spēkiem; izmantotas tikai `numpy` un
-`matplotlib` (nekādu gatavu optimizācijas bibliotēku).
+Simulētā rūdīšana ir realizēta bez gatavām optimizācijas algoritmu implementācijām ; 
+izmantotas tikai `numpy` un `matplotlib`.
 
 ## Uzdevums
 
@@ -147,7 +147,7 @@ Dzesēšanas koeficienta ietekme (1000/50, 5 sēklas):
 - Inkrementāls Δ ļauj izmēģināt ~1,2 milj. gājienu 2000/100 piemērā
   ~1,7 s laikā tīrā Python.
 - Šim uzdevumam eksistē polinomiāls precīzs algoritms (tas ir transporta
-  uzdevums), un mūsu piemēros tas ir ātrāks par SA vai līdzvērtīgs tai.
+  uzdevums), un šajos piemēros tas ir ātrāks par SA vai līdzvērtīgs tai.
   SA priekšrocība būtu modeļa paplašinājumos, kuri izjauc plūsmas
   struktūru (piemēram, nelineāras izmaksas vai papildu ierobežojumi
   skolēnu grupām), jo gājienus un Δ var viegli pielāgot.
